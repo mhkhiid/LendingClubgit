@@ -5,6 +5,7 @@ Created on Fri Dec 16 01:09:09 2016
 @author: dingh
 """
 
+import re
 import pandas as pd
 import numpy as np
 import random as rand
@@ -18,6 +19,7 @@ matplotlib.style.use('ggplot')
 
 def grade_scatplot (data, feature):
     data.plot(kind = 'scatter', x = feature, y = 'grade')
+    plt.savefig(feature + '_grade.png')
     return
 
 
@@ -67,7 +69,16 @@ def get_default_rate(data):
 def preprocessing(data):
     # Converting categorical grading to numerical values
     grade_map = {'A':1, 'B':2, 'C':3, 'D':4, 'E':5, 'F':6, 'G':7}
-    return data.replace({'grade': grade_map})
+    verification_map = {'Not Verified':0, 'Source Verified':1, 'Verified':2}
+
+    data = data.replace({'grade': grade_map, 'verification_status': verification_map})
+
+    # substitute '< 1 years' to '1', '2 years' to '2', '10+ years' to '10'
+    data['emp_length'] = pd.to_numeric(data.emp_length.str.replace(r'<? ?(\d+)[+]? year[s]?', r'\1').replace('n/a', np.NaN))
+
+    data['term'] = pd.to_numeric(data.term.str.replace(' months', ''))
+
+    return data
 
 
 def run():
@@ -81,132 +92,37 @@ def run():
 
     data_train = preprocessing(data_train)
 
-    for i in [ 'avg_cur_bal', 'chargeoff_within_12_mths', 'dti', 'num_bc_sats', 'pub_rec', 'delinq_2yrs', 'emp_length']:
+    # Exploratory data analysis
+    features = [ 'avg_cur_bal', 'chargeoff_within_12_mths', 'dti', 'num_bc_sats', 
+                 'pub_rec', 'delinq_2yrs', 'emp_length', 'il_util', 'inq_fi', 
+                 'inq_last_12m', 'max_bal_bc', 'mths_since_last_delinq', 
+                 'mths_since_last_major_derog', 'num_accts_ever_120_pd', 
+                 'num_actv_bc_tl', 'num_bc_sats', 'num_tl_120dpd_2m', 
+                 'num_tl_30dpd', 'open_il_6m', 'pct_tl_nvr_dlq', 'pub_rec', 
+                 'tot_cur_bal', 'verification_status' ]
+
+    for i in features:
         grade_scatplot(data_train, i)
 
-
-# 7. emp_length
-## TODO
-"""temp = []
-for elem in data[data.emp_length == '10+ years']['emp_length']:
-    temp.append(10)
-data[data.emp_length == '10+ years'] = temp
-
-temp = []
-for elem in data[data.emp_length != 10]['emp_length']:
-    temp.append(elem[0:1])
-
-temp_mod = []
-for elem in temp:
-    if elem == 'n':
-        elem = 0
-    if elem == '<':
-        elem = 0.5
-    temp_mod.append(elem)   
-        
-data[data.emp_length != 10]['emp_length'] = temp_mod
-# CANNOT IDENTIFY THE BUG HERE"""
-
-# 8. il_util, 'inq_fi', 'inq_last_12m', 'max_bal_bc', 'mths_since_last_delinq, 'mths_since_last_major_derog', 'num_accts_ever_120_pd', 'num_actv_bc_tl', 'num_bc_sats', 'num_tl_120dpd_2m', 'num_tl_30dpd', 'open_il_6m', 'pct_tl_nvr_dlq', 'pub_rec', 'tot_cur_bal', 'verification_status'
+    # Linear regression
+    grade_linreg('avg_cur_bal')
 
 '''
+Findings:
 
-# Exploratory linear regression
-
-# 1. avg_cur_bal
-grade_linreg('avg_cur_bal')
-
-"""
-# 2. chargeoff_within_12_mths
-data.plot(kind = 'scatter', x = 'chargeoff_within_12_mths', y = 'num_grade')
-
-# 3. dti
-data.plot(kind = 'scatter', x = 'dti', y = 'num_grade')
-
-# 4. num_bc_sats      umber of satisfactory bankcard accounts
-data.plot(kind = 'scatter', x = 'num_bc_sats', y = 'num_grade')
-
-# 5. pub_rec
-data.plot(kind = 'scatter', x = 'pub_rec', y = 'num_grade')
-
-# 6. delinq_2yrs
-data.plot(kind = 'scatter', x = 'delinq_2yrs', y = 'num_grade')
-
-# 7. emp_length
-emp = []
-for elem in data[data.emp_length == '10+ years']['emp_length']:
-    temp.append(10)
-data[data.emp_length == '10+ years'] = temp
-
-temp = []
-for elem in data[data.emp_length != 10]['emp_length']:
-    temp.append(elem[0:1])
-
-temp_mod = []
-for elem in temp:
-    if elem == 'n':
-        elem = 0
-    if elem == '<':
-        elem = 0.5
-    temp_mod.append(elem)   
-        
-data[data.emp_length != 10]['emp_length'] = temp_mod
-# CANNOT IDENTIFY THE BUG HERE
-
-# 8. il_util
-data.plot(kind = 'scatter', x = 'il_util', y = 'num_grade')
-
-# 9. inq_fi
-data.plot(kind = 'scatter', x = 'inq_fi', y = 'num_grade')
-## No obvious relationship
-
-# 10. inq_last_12m
-data.plot(kind = 'scatter', x = 'inq_last_12m', y = 'num_grade')
-## No obvious relationship
-
-# 11. max_bal_bc
-data.plot(kind = 'scatter', x = 'max_bal_bc', y = 'num_grade')
-## quite obvious positive relationship
-
-# 12. mths_since_last_delinq
-data.plot(kind = 'scatter', x = 'mths_since_last_delinq', y = 'num_grade')
-
-# 13. mths_since_last_major_derog
-data.plot(kind = 'scatter', x = 'mths_since_last_major_derog', y = 'num_grade')
-## Not so obvious
-
-# 14. num_accts_ever_120_pd
-data.plot(kind = 'scatter', x = 'num_accts_ever_120_pd', y = 'num_grade')
-## Obvious positive relationship???
-
-# 15. num_actv_bc_tl
-data.plot(kind = 'scatter', x = 'num_actv_bc_tl', y = 'num_grade')
-## No obvious relationship
-
-# 16. num_bc_sats
-data.plot(kind = 'scatter', x = 'num_bc_sats', y = 'num_grade')
-## good relationship
-
-# 17. num_tl_120dpd_2m
-data.plot(kind = 'scatter', x = 'num_tl_120dpd_2m', y = 'num_grade')
-## good negative relationship, but sample space is too small
-
-# 18. num_tl_30dpd
-data.plot(kind = 'scatter', x = 'num_tl_30dpd', y = 'num_grade')
-## No relationship 
-
-# 19. open_il_6m
-data.plot(kind = 'scatter', x = 'open_il_6m', y = 'num_grade')
-## positive relationship 
-
-# 20. pct_tl_nvr_dlq
-data.plot(kind = 'scatter', x = 'pct_tl_nvr_dlq', y = 'num_grade')
-##WHY MOST OF THE SCATTER PLOTS ARE > SHAPED??
-
-# 21. pub_rec
-data.plot(kind = 'scatter', x = 'pub_rec', y = 'num_grade')
-## counter-intuitive shape. 
-"""
+inq_fi                          No obvious relationship
+inq_last_12m                    No obvious relationship
+max_bal_bc                      quite obvious positive relationship
+mths_since_last_delinq 
+mths_since_last_major_derog     Not so obvious
+num_accts_ever_120_pd           Obvious positive relationship???
+num_actv_bc_tl                  No obvious relationship
+num_bc_sats                     good relationship
+num_tl_120dpd_2m                good negative relationship, but sample space is too small
+num_tl_30dpd                    No relationship 
+open_il_6m                      positive relationship 
+pct_tl_nvr_dlq                  WHY MOST OF THE SCATTER PLOTS ARE > SHAPED??
+pub_rec                         counter-intuitive shape. 
 '''
 
 if __name__ == '__main__':
