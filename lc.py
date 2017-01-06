@@ -5,8 +5,6 @@ Created on Fri Dec 16 01:09:09 2016
 @author: dingh
 """
 
-
-
 import pandas as pd
 import numpy as np
 import random as rand
@@ -18,97 +16,77 @@ from patsy import dmatrices
 
 matplotlib.style.use('ggplot')
 
-""" Functions"""
-
-def grade_scatplot (string):
-    data.plot(kind = 'scatter', x = string, y = 'num_grade')
+def grade_scatplot (data, feature):
+    data.plot(kind = 'scatter', x = feature, y = 'grade')
     return
 
+
 def grade_linreg(var):
-    data_temp = data.loc[:,['num_grade',var]]
+    data_temp = data.loc[:,['grade',var]]
     data_temp = data_temp.dropna()
-    mod = sm.OLS(data_temp['num_grade'],data_temp[var])
+    mod = sm.OLS(data_temp['grade'],data_temp[var])
     res = mod.fit()
     print res.summary()
     return
     
-    
+
+def split_dataset(files):
+
+    data_merge = []
+    for datafile in files:
+        data_year = pd.read_csv(datafile)
+        data_merge.append(data_year)
+
+    data = pd.concat(data_merge, ignore_index = True)
+
+    # Shuffle the data set to get training, development and test sets.
+    data = data.reindex(np.random.permutation(data.index))
+    data.reset_index(drop=True, inplace=True)
+
+    num_data = len(data)
+    batch = int(num_data / 5)
+
+    data_test = data[0:batch]
+    data_dev = data[batch:2*batch]
+    data_train = data[2*batch:]
+    data_dev.reset_index(drop=True, inplace=True)
+    data_train.reset_index(drop=True, inplace=True)
+
+    # Save to csv
+    data_test.to_csv("data_test.csv")
+    data_dev.to_csv("data_dev.csv")
+    data_train.to_csv("data_train.csv")
+    data.to_csv("overall sorted data.csv")
 
 
-"""Load in the data"""
-
-data0711 = pd.read_csv("LoanStats3a.csv")
-data1213 = pd.read_csv("LoanStats3b.csv")
-data14 = pd.read_csv("LoanStats3c.csv")
-data15 = pd.read_csv("LoanStats3d.csv")
-data16Q1 = pd.read_csv("LoanStats_2016Q1.csv")
-data16Q2 = pd.read_csv("LoanStats_2016Q2.csv")
-data16Q3 = pd.read_csv("LoanStats_2016Q3.csv")
+def get_default_rate(data):
+    num_default = len(data[data.loan_status == "Charged Off"])
+    return float(num_default) / len(data)
 
 
+def preprocessing(data):
+    # Converting categorical grading to numerical values
+    grade_map = {'A':1, 'B':2, 'C':3, 'D':4, 'E':5, 'F':6, 'G':7}
+    return data.replace({'grade': grade_map})
 
 
-"""Concatenate the different dataframes"""
+def run():
+    #files = [ "LoanStats3a.csv", "LoanStats3b.csv", "LoanStats3c.csv", "LoanStats3d.csv", "LoanStats_2016Q1.csv", "LoanStats_2016Q2.csv", "LoanStats_2016Q3.csv" ]
+    #files = [ "LoanStats3a.csv" ]
+    #split_dataset(files)
 
-frame = [data0711, data1213, data14, data15, data16Q1, data16Q2, data16Q3]
-data = pd.concat(frame, ignore_index = True)
+    data_train = pd.read_csv("data_train.csv")
+    default_rate = get_default_rate(data_train)
+    print "Default rate is %f" % default_rate
 
+    data_train = preprocessing(data_train)
 
+    for i in [ 'avg_cur_bal', 'chargeoff_within_12_mths', 'dti', 'num_bc_sats', 'pub_rec', 'delinq_2yrs', 'emp_length']:
+        grade_scatplot(data_train, i)
 
-"""Partition the training, development and test sets."""
-
-""" We can partition by the following if the member ID is not assigned by some characteristics with
-user with some of the characteristics assigned a member ID that is the multiple of 5"""
-
-data['ASSIGN'] = data['member_id'] % 5+1    
-
-
-"""Partition the data into test, development and training set"""
-
-data_test = data[data.ASSIGN == 1]
-data_dev = data[data.ASSIGN == 2]
-data_train = data[(data.ASSIGN == 3) | (data.ASSIGN == 4) | (data.ASSIGN == 5)]
-
-"""Output to csv"""
-data_test.to_csv("data_test.csv")
-data_dev.to_csv("data_dev.csv")
-data_train.to_csv("data_train.csv")
-data.to_csv("overall sorted data.csv")
-
-"""Default rate????"""
-number_default = len(data[data.loan_status == "Charged Off"])
-"""How should we scope the current loans?"""
-
-
-"""Converting categorical grading to numerical values"""
-grade_lib = {'G':1, 'F':2, 'E':3, 'D':4, 'C':5, 'B':6, 'A':7}
-num_grade = []
-for i in data['sub_grade']:
-   num_grade.append(grade_lib[i[0]]*5 - int(i[1]))
-   
-data['num_grade'] = pd.Series(num_grade, index = data.index)
-
-
-"""Scatter plot of grade and other factors"""
-# 1. avg_cur_bal
-grade_scatplot ('avg_cur_bal')
-
-# 2. chargeoff_within_12_mths
-grade_scatplot('chargeoff_within_12_mths')
-
-# 3. dti
-data.plot(kind = 'scatter', x = 'dti', y = 'num_grade')
-
-# 4. num_bc_sats      umber of satisfactory bankcard accounts
-data.plot(kind = 'scatter', x = 'num_bc_sats', y = 'num_grade')
-
-# 5. pub_rec
-data.plot(kind = 'scatter', x = 'pub_rec', y = 'num_grade')
-
-# 6. delinq_2yrs
-data.plot(kind = 'scatter', x = 'delinq_2yrs', y = 'num_grade')
 
 # 7. emp_length
+## TODO
 """temp = []
 for elem in data[data.emp_length == '10+ years']['emp_length']:
     temp.append(10)
@@ -129,81 +107,9 @@ for elem in temp:
 data[data.emp_length != 10]['emp_length'] = temp_mod
 # CANNOT IDENTIFY THE BUG HERE"""
 
-# 8. il_util
-data.plot(kind = 'scatter', x = 'il_util', y = 'num_grade')
+# 8. il_util, 'inq_fi', 'inq_last_12m', 'max_bal_bc', 'mths_since_last_delinq, 'mths_since_last_major_derog', 'num_accts_ever_120_pd', 'num_actv_bc_tl', 'num_bc_sats', 'num_tl_120dpd_2m', 'num_tl_30dpd', 'open_il_6m', 'pct_tl_nvr_dlq', 'pub_rec', 'tot_cur_bal', 'verification_status'
 
-# 9. inq_fi
-data.plot(kind = 'scatter', x = 'inq_fi', y = 'num_grade')
-## No obvious relationship
-
-# 10. inq_last_12m
-data.plot(kind = 'scatter', x = 'inq_last_12m', y = 'num_grade')
-## No obvious relationship
-
-# 11. max_bal_bc
-data.plot(kind = 'scatter', x = 'max_bal_bc', y = 'num_grade')
-## quite obvious positive relationship
-
-# 12. mths_since_last_delinq
-data.plot(kind = 'scatter', x = 'mths_since_last_delinq', y = 'num_grade')
-
-# 13. mths_since_last_major_derog
-data.plot(kind = 'scatter', x = 'mths_since_last_major_derog', y = 'num_grade')
-## Not so obvious
-
-# 14. num_accts_ever_120_pd
-data.plot(kind = 'scatter', x = 'num_accts_ever_120_pd', y = 'num_grade')
-## Obvious positive relationship???
-
-# 15. num_actv_bc_tl
-data.plot(kind = 'scatter', x = 'num_actv_bc_tl', y = 'num_grade')
-## No obvious relationship
-
-# 16. num_bc_sats
-data.plot(kind = 'scatter', x = 'num_bc_sats', y = 'num_grade')
-## good relationship
-
-# 17. num_tl_120dpd_2m
-data.plot(kind = 'scatter', x = 'num_tl_120dpd_2m', y = 'num_grade')
-## good negative relationship, but sample space is too small
-
-# 18. num_tl_30dpd
-data.plot(kind = 'scatter', x = 'num_tl_30dpd', y = 'num_grade')
-## No relationship 
-
-# 19. open_il_6m
-data.plot(kind = 'scatter', x = 'open_il_6m', y = 'num_grade')
-## positive relationship 
-
-# 20. pct_tl_nvr_dlq
-data.plot(kind = 'scatter', x = 'pct_tl_nvr_dlq', y = 'num_grade')
-##WHY MOST OF THE SCATTER PLOTS ARE > SHAPED??
-
-# 21. pub_rec
-data.plot(kind = 'scatter', x = 'pub_rec', y = 'num_grade')
-## counter-intuitive shape. 
-
-
-
-
-###### HONESTLY NEED TO LOOK AT THE DENSITY DISTRIBUTION OF THE DATA POINT AT LEFT TAIL.
-
-
-
-# 22. tot_cur_bal
-data.plot(kind = 'scatter', x = 'tot_cur_bal', y = 'num_grade')
-## perfect positive relationship
-
-# 23. verification_status
-data.plot(kind = 'scatter', x = 'verification_status', y = 'num_grade')
-
-
-
-
-
-
-
-
+'''
 
 # Exploratory linear regression
 
@@ -301,27 +207,7 @@ data.plot(kind = 'scatter', x = 'pct_tl_nvr_dlq', y = 'num_grade')
 data.plot(kind = 'scatter', x = 'pub_rec', y = 'num_grade')
 ## counter-intuitive shape. 
 """
+'''
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+if __name__ == '__main__':
+    run()
